@@ -1,0 +1,530 @@
+<html>
+
+<head>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <style>
+    .gridlines .domain {
+      display: none;
+    }
+
+    .gridlines line {
+      stroke: #aaa;
+    }
+
+    h1 {
+      text-align: center;
+      margin-top: 3%;
+      margin-bottom: 3%;
+    }
+
+    .row {
+      display: flex;
+      flex-direction: row;
+      margin-bottom: 5%;
+    }
+
+    svg {
+      width: 70%;
+    }
+
+    .row div {
+      background-color: #d54700;
+      color: white;
+      margin-left: 5%;
+      /* margin-right: 5%; */
+      padding: 5%;
+      width: 30%;
+      border: 5px solid black;
+      font-size: larger;
+    }
+
+    #speciesChart {
+      width: 100%;
+      margin-left: 5%;
+    }
+
+    #speciesChart svg {
+      width: 40%;
+      padding-top: 2%;
+      margin-bottom: 2%;
+    }
+
+    .banner {
+      background-color: #d54700;
+      color: white;
+      border: 5px solid black;
+      font-size: larger;
+      padding: 5%;
+      display: flex;
+      flex-direction: row;
+    }
+
+    .banner h2 {
+      width: 30%;
+    }
+
+    .banner p {
+      margin-left: 5%;
+      width: 30%;
+    }
+
+    strong {
+      font-weight: bold;
+      text-decoration: underline;
+      color: green
+    }
+  </style>
+
+</head>
+
+<body>
+
+  <h1><strong>More Trees Please</strong> - A Look at San Francisco's Tree Planting Over the Years</h1>
+
+  <div class="row">
+    <div>
+      <h2>Trees Planted Before and After 1955</h2>
+      <p>This dataset includes trees in San Francisco that have been located and identified by the Department of
+        Public
+        Works. The dataset goes up to 2021.</p>
+      <p>27,781 trees have been living in San Francisco for at least 65 years.</p>
+      <p>9,335 trees have been "newly" planted.</p>
+    </div>
+    <svg id="compareChart" height="500" width="750"></svg>
+  </div>
+
+  <div class="row">
+    <svg id="chart" height="750" , width="750"></svg>
+    <div>
+      <h2>Number of Trees Planted Each Year Since 1956</h2>
+      <p>Only 23 trees were planted in 1956.</p>
+      <p>Interestingly, from 1957 to 1968, no trees were planted in San Francisco. The year 1971 also had no trees
+        planted.</p>
+      <p>San Francisco's tree planting peaked in 2008, with 708 trees planted.</p>
+      <br>
+      <br>
+      <p><em>SCROLL DOWN</em> to see a breakdown by most common species.</p>
+    </div>
+  </div>
+  <div class="banner">
+    <h2>
+      The 6 Most Frequent Species Among New Trees
+    </h2>
+    <p>
+      In 2008, 85 Hybrid Strawberry trees were planted. In 1995, 82 Brisbane Box trees were planted. Most of these
+      species had their highest peak between 2005 and
+      2010, except for the Brisbane Box and the Victorian Box.
+    </p>
+    <p>
+      The Hybrid Strawberry Tree, the Victorian Box, and the New Zealand Xmas Tree made up about 50% of the trees
+      planted in 1956.
+    </p>
+  </div>
+  <div id="speciesChart"></div>
+
+  <script id="v1">
+    // --------------------------- Line Chart Constants ---------------------------
+    const svg = d3.select("#chart");
+    const width = svg.attr("width");
+    const height = svg.attr("height");
+    const margin = { top: 10, right: 10, bottom: 50, left: 50 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+    const lineChart = svg.append("g")
+      .attr("id", "lineChart")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // --------------------------- Compare Chart Constants ---------------------------
+    const svg2 = d3.select("#compareChart");
+    const width2 = svg2.attr("width");
+    const height2 = svg2.attr("height");
+    const margin2 = { top: 10, right: 10, bottom: 50, left: 50 };
+    const chartWidth2 = width2 - margin2.left - margin2.right;
+    const chartHeight2 = height2 - margin2.top - margin2.bottom;
+    const compChart = svg2.append("g")
+      .attr("id", "lineChart")
+      .attr("transform", `translate(${margin2.left},${margin2.top})`);
+
+    const requestData = async function () {
+      const trees = await d3.csv("Street_Tree_List-2022-01-30_FILTERED.csv", d3.autoType);
+
+      // --------------------------- Line Chart ---------------------------
+      let annotations = svg.append("g").attr("id", "annotations");
+
+      // format the date/time to extract the year
+      var dateFormat = d3.timeFormat("%Y");
+      var dateParser = d3.timeParse("%m/%d/%y %H:%M");
+
+      // account for error that gives years greater than 2024
+      trees.forEach((d) => {
+        if (d["PlantDate"] === null) { d["plantYear"] = 1955 }
+        else {
+          if (Number(dateFormat(dateParser(d["PlantDate"]))) > 2024) {
+            d["plantYear"] = Number(dateFormat(dateParser(d["PlantDate"]))) - 100
+          } else { d["plantYear"] = Number(dateFormat(dateParser(d["PlantDate"]))) }
+        }
+      })
+
+      // x extent/scale
+      const yearExtent = d3.extent(trees, (d) => d["plantYear"]);
+
+      const yearScale = d3.scaleLinear().domain(yearExtent).range([0, chartWidth]);
+
+      // x axis and gridlines
+      let bottomAxis = d3.axisBottom(yearScale).tickFormat(d3.format("0"));
+      let bottomGridlines = d3.axisBottom(yearScale)
+        .tickSize(-chartHeight - margin.top)
+        .tickFormat("");
+
+      annotations.append("g")
+        .attr("class", "x axis")
+        .attr("transform",
+          `translate(${margin.left},${chartHeight + margin.top + 10})`
+        )
+        .call(bottomAxis)
+
+      annotations.append("g")
+        .attr("class", "x gridlines")
+        .attr("transform",
+          `translate(${margin.left},${chartHeight + margin.top + 10})`
+        )
+        .lower()
+        .call(bottomGridlines);
+
+      // Count the number of trees planted in each year
+      var yearsCount = d3.rollups(trees, (D) => D.length, (d) => d.plantYear);
+      yearsCount = d3.sort(yearsCount, (a) => a[0])
+
+      var givenYears = yearsCount.map(d => d[0])
+
+      // maybe make function of this ?
+      for (let i = 1955; i < 2023; i++) {
+        if (givenYears.indexOf(i) === -1) {
+          yearsCount.push(Array(i, 0))
+        }
+      }
+
+      yearsCount = d3.sort(yearsCount, (a) => a[0]);
+
+      let year1955 = yearsCount[0];
+
+      yearsCount = yearsCount.filter((d) => {
+        return (d[0] != 1955 && d[0] != 2022)
+      })
+
+      // y extent/scale
+      const yearCountExtent = d3.extent(yearsCount, (d) => d[1]);
+
+      const yrCountScale = d3.scaleLinear()
+        .domain(yearCountExtent)
+        .range([chartHeight, 0]);
+
+      // y axis and gridlines
+      let leftAxis = d3.axisLeft(yrCountScale)
+      let leftGridlines = d3.axisLeft(yrCountScale)
+        .tickSize(-chartWidth - margin.right + 10)
+        .tickFormat("");
+
+      annotations.append("g")
+        .attr("class", "y axis")
+        .attr("transform",
+          `translate(${margin.left},${margin.top})`
+        )
+        .call(leftAxis);
+
+      annotations.append("g")
+        .attr("class", "y gridlines")
+        .attr("transform",
+          `translate(${margin.left},${margin.top})`
+        )
+        .lower()
+        .call(leftGridlines);
+
+      // line path
+      var lineGen = d3.line()
+        .x((d) => yearScale(d[0]))
+        .y((d) => yrCountScale(d[1]))
+        .curve(d3.curveLinear);
+
+      lineChart.append("path")
+        .datum(yearsCount)
+        .attr("fill", "none")
+        .attr("stroke", "green")
+        .attr("stroke-width", 3)
+        .attr("d", lineGen);
+
+      // x axis labels
+      annotations.append("text")
+        .attr("class", "x-label")
+        .attr("transform", `translate(${chartWidth / 2 + margin.left}, ${chartHeight + margin.bottom + margin.top})`)
+        .style("text-anchor", "middle")
+        .text("Year")
+        .attr("fill", "black")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold");
+
+      // y axis labels
+      annotations.append("text")
+        .attr("class", "y-label")
+        .attr("transform", `translate(${+20}, ${chartHeight / 2}) rotate(-90)`)
+        .style("text-anchor", "middle")
+        .text("Number of Trees")
+        .attr("fill", "black")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold");
+
+      lineChart.raise();
+
+      // --------------------------- Compare Chart ---------------------------
+      let annotations2 = svg2.append("g").attr("id", "annotations2");
+
+      var givenYrCounts = yearsCount.map(d => d[1]);
+
+      let xScale = d3.scaleLinear()
+        .domain([0, 30000])
+        .range([0, chartWidth2]);
+
+      let yScale = d3.scaleBand()
+        .domain(["After 1955", "Before 1955"])
+        .range([chartHeight2, 0]);
+
+      let colorScale = d3.scaleSequential(d3.interpolateGreens)
+        .range([0, 30000]);
+
+      let leftAxis2 = d3.axisLeft(yScale);
+
+      annotations2.append("g")
+        .attr("class", "y axis")
+        .attr("transform", `translate(${margin2.left + 50},${margin2.top})`)
+        .attr("fill", "black")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold")
+        .call(leftAxis2);
+
+      let bottomAxis2 = d3.axisBottom(xScale).ticks(10);
+
+      annotations2.append("g")
+        .attr("class", "x axis")
+        .attr("transform",
+          `translate(${margin2.left + 50},${chartHeight2 + margin2.top + 10})`
+        )
+        .call(bottomAxis2);
+
+      let bottomGridlines2 = d3.axisBottom(xScale)
+        .tickSize(-chartHeight2 - margin2.top)
+        .tickFormat("");
+
+      annotations2.append("g")
+        .attr("class", "x gridlines")
+        .attr("transform",
+          `translate(${margin2.left + 50},${chartHeight2 + margin2.top + 10})`
+        )
+        .call(bottomGridlines2);
+
+      let compData = [
+        { key: "Before 1955", value: year1955[1] },
+        { key: "After 1955", value: d3.sum(givenYrCounts) }
+      ];
+
+      compChart.selectAll("rect")
+        .data(compData)
+        .join("rect")
+        .attr("class", "count")
+        .attr("fill", (d) => {
+          if (d.key === "Before 1955") { return "#31a354" } else { return "#74c476" }
+        })
+        .attr("x", margin2.left)
+        .attr("y", (d) => yScale(d.key) + (yScale.bandwidth() / 4))
+        .attr("height", yScale.bandwidth() / 2)
+        .attr("width", (d) => xScale(d.value));
+
+      // x axis labels
+      annotations2.append("text")
+        .attr("class", "x-label")
+        .attr("transform", `translate(${chartWidth2 / 2 + margin2.left * 2}, ${chartHeight2 + margin2.bottom + margin2.top})`)
+        .style("text-anchor", "middle")
+        .text("Number of Trees")
+        .attr("fill", "black")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold");
+
+      compChart.raise()
+
+      // --------------------------- Species ---------------------------
+
+      trees.forEach((d) => {
+        d["comSp"] = d["qSpecies"].split("::")[1].trim()
+      });
+
+      let newTrees = trees.filter((d) => {
+        return d["plantYear"] > 1955 && d["comSp"] != ''
+      });
+
+      var spCount = d3.rollups(newTrees, (D) => D.length, (d) => d["comSp"]);
+      spCount = d3.sort(spCount, (a) => a[1]);
+
+      function calculateCounts(treeType) {
+
+        let typeOfTree = newTrees.filter((d) => {
+          return d["comSp"] === treeType
+        })
+        var typeCounts = d3.rollups(typeOfTree, (D) => D.length, (d) => d.plantYear)
+        typeCounts = d3.sort(typeCounts, (a) => a[1])
+
+        var givenType = typeCounts.map(d => d[0])
+
+        for (let i = 1956; i < 2022; i++) {
+          if (givenType.indexOf(i) === -1) {
+            typeCounts.push(Array(i, 0))
+          }
+        }
+
+        typeCounts = d3.sort(typeCounts, (a) => a[0])
+        return typeCounts
+      }
+
+      var max = [0, 0];
+      var spNames = [];
+      var dataBySpecies = [];
+
+      for (let k = 269; k >= 264; k--) {
+        var counts = calculateCounts(spCount[k][0])
+        var tmpExtent = d3.extent(counts, (d) => d[1])
+        if (max[1] < tmpExtent[1]) { max = tmpExtent }
+        spNames.push(spCount[k][0])
+        dataBySpecies.push(counts)
+      }
+
+      const width3 = 600
+      const height3 = 600
+      const margin3 = { top: 10, right: 10, bottom: 50, left: 50 };
+
+      let miniW = width3 / 1.5;
+      let miniH = height3 / 2.5;
+
+      var spSvg = d3.select("#speciesChart")
+        .selectAll("unique")
+        .data(dataBySpecies)
+        .join("svg")
+        .attr("id", (d, i) => `spGraph_${i}`)
+        .attr("class", "test")
+        .attr("width", miniW + margin3.left + margin3.right)
+        .attr("height", miniH + margin3.top + margin3.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin3.left},${margin3.top})`)
+
+      // x scale
+      const yearScale3 = d3.scaleLinear()
+        .domain(yearExtent)
+        .range([0, miniW]);
+
+
+      // y scale
+      const spCountScale = d3.scaleLinear()
+        .domain(max)
+        .range([miniH, 0])
+
+      // color scale
+      const spColors = d3.scaleOrdinal(spNames, d3.schemeCategory10)
+
+
+      // y axis and gridlines
+      let leftAxis3 = d3.axisLeft(spCountScale);
+
+      spSvg.append("g")
+        .attr("class", "y axis")
+        .attr("transform", `translate(${margin3.left + 40},${margin3.top})`)
+        .call(leftAxis3);
+
+      let leftGridlines3 = d3.axisLeft(spCountScale)
+        .tickSize(-miniW - margin3.right)
+        .tickFormat("")
+
+      spSvg.append("g")
+        .attr("class", "y gridlines")
+        .attr("transform",
+          `translate(${margin3.left + 40},${margin3.top})`
+        )
+        .call(leftGridlines3)
+
+      // x axis and gridlines
+      let bottomAxis3 = d3.axisBottom(yearScale3).tickFormat(d3.format("0"));
+
+      spSvg.append("g")
+        .attr("class", "x axis")
+        .attr("transform",
+          `translate(${margin3.left + 50},${miniH + margin3.top + 10})`
+        )
+        .call(bottomAxis3);
+
+      let bottomGridlines3 = d3.axisBottom(yearScale3)
+        .tickSize(-miniH - margin3.top)
+        .tickFormat("");
+
+      spSvg.append("g")
+        .attr("class", "x gridlines")
+        .attr("transform",
+          `translate(${margin3.left + 50},${miniH + margin3.top + 10})`
+        )
+        .lower()
+        .call(bottomGridlines3);
+
+      // line generation
+      var lineGenSP = d3.line()
+        .x((d) => yearScale3(d[0]))
+        .y((d) => spCountScale(d[1]))
+        .curve(d3.curveLinear);
+
+      spSvg.append("path")
+        .attr("fill", "none")
+        .attr("stroke", (d) => spColors(d))
+        .attr("stroke-width", 3)
+        .attr("d", lineGenSP)
+        .attr("transform",
+          `translate(${margin3.left * 2},${margin3.top})`
+        );
+
+      spSvg.append("text")
+        .attr("text-anchor", "start")
+        .attr("y", 5)
+        .attr("x", margin3.left + margin3.right)
+        .text((d, i) => spNames[i])
+        .style("fill", d => spColors(d))
+        .style("text-align", "center")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold")
+        .style("font-size", "120%")
+
+      // x axis labels
+      spSvg.append("text")
+        .attr("class", "x-label")
+        .attr("transform", `translate(${miniW / 2 + margin3.left + margin3.right * 5}, ${miniH + margin3.bottom})`)
+        .text("Year")
+        .style("text-anchor", "middle")
+        .attr("fill", "black")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold");
+
+      // y axis labels
+      spSvg.append("text")
+        .attr("class", "y-label")
+        .attr("transform", `translate(${margin3.left}, ${miniH / 2}) rotate(-90)`)
+        .style("text-anchor", "middle")
+        .text("Number of Trees")
+        .attr("fill", "black")
+        .style("font-family", "monospace")
+        .style("font-weight", "bold");
+
+
+
+
+    }
+
+    requestData();
+
+  </script>
+
+</body>
+
+</html>
